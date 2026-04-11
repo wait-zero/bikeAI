@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# data artifacts
+data/raw/**
+data/interim/**
+data/processed/**
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# model artifacts
+models_out/
+lightning_logs/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+
+# reports
+reports/*.md
+reports/*.html
+!reports/.gitkeep
