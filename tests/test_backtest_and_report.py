@@ -35,11 +35,11 @@ def test_split_by_fold_partitions_correctly():
 
 def test_render_comparison_md_writes_table(tmp_path):
     lgbm = {
-        "5min": {"mae": 1.2, "rmse": 2.0, "smape": 15.0, "empty_accuracy": 0.9, "full_accuracy": 0.95},
-        "60min": {"mae": 3.5, "rmse": 4.0, "smape": 30.0, "empty_accuracy": 0.8, "full_accuracy": 0.85},
+        "5min": {"mae": 1.2, "rmse": 2.0, "smape": 15.0, "empty_accuracy": 0.9},
+        "60min": {"mae": 3.5, "rmse": 4.0, "smape": 30.0, "empty_accuracy": 0.8},
     }
     tft = {
-        "5min": {"mae": 1.0, "rmse": 1.8, "smape": 14.0, "empty_accuracy": 0.92, "full_accuracy": 0.96},
+        "5min": {"mae": 1.0, "rmse": 1.8, "smape": 14.0, "empty_accuracy": 0.92},
     }
     out = render_comparison_md(lgbm, tft, tmp_path / "report.md")
     text = out.read_text()

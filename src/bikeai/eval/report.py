@@ -16,7 +16,7 @@ def render_comparison_md(
     lines.append(f"# 모델 비교 리포트 ({datetime.now():%Y-%m-%d %H:%M})\n")
 
     horizons = sorted(set(lgbm_report) | (set(tft_report) if tft_report else set()), key=_h_key)
-    metrics = ["mae", "rmse", "smape", "empty_accuracy", "full_accuracy"]
+    metrics = ["mae", "rmse", "smape", "empty_accuracy"]
 
     headers = ["horizon"] + [f"{m} (LGBM)" for m in metrics]
     if tft_report:

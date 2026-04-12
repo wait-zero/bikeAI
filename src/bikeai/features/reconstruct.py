@@ -119,12 +119,11 @@ def apply_anchors(
 def resample_to_grid(
     rel_series: pd.DataFrame,
     freq: str = RESAMPLE_FREQ,
-    capacity: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Resample event-level series to a fixed grid using forward fill.
 
-    If `capacity` is provided (columns [station_id, capacity]), the resulting
-    bike_count is also clipped to [0, capacity] per station.
+    Seoul Ttareungi has no capacity concept, so no upper-bound clipping is applied.
+    Only the lower bound (`bike_count >= 0`) is enforced — see `apply_anchors`.
     """
     if rel_series.empty:
         return pd.DataFrame(columns=["station_id", "ts", "bike_count"])
@@ -142,21 +141,12 @@ def resample_to_grid(
         )
         pieces.append(pd.DataFrame({"station_id": sid, "ts": s.index, "bike_count": s.values}))
 
-    out = pd.concat(pieces, ignore_index=True)
-
-    if capacity is not None and not capacity.empty:
-        cap_map = capacity.set_index("station_id")["capacity"].to_dict()
-        out["bike_count"] = np.minimum(
-            out["bike_count"].to_numpy(),
-            out["station_id"].map(cap_map).fillna(np.iinfo(np.int64).max).astype("int64").to_numpy(),
-        )
-    return out
+    return pd.concat(pieces, ignore_index=True)
 
 
 def reconstruct(
     rentals: pd.DataFrame,
     anchors: pd.DataFrame | None = None,
-    capacity: pd.DataFrame | None = None,
     freq: str = RESAMPLE_FREQ,
 ) -> ReconstructionResult:
     """End-to-end: rental events → resampled station × time bike_count series.
@@ -171,7 +161,7 @@ def reconstruct(
         rel,
         anchors if anchors is not None else pd.DataFrame(columns=["station_id", "ts", "bike_count"]),
     )
-    grid = resample_to_grid(abs_series, freq=freq, capacity=capacity)
+    grid = resample_to_grid(abs_series, freq=freq)
 
     return ReconstructionResult(
         series=grid,

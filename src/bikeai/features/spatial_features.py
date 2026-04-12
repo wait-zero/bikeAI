@@ -68,6 +68,6 @@ def add_neighbor_mean(
 
 
 def attach_station_attrs(series: pd.DataFrame, stations: pd.DataFrame) -> pd.DataFrame:
-    """Join lat/lon/capacity onto every (station_id, ts) row."""
-    cols = ["station_id", "lat", "lon", "capacity"]
+    """Join lat/lon onto every (station_id, ts) row."""
+    cols = ["station_id", "lat", "lon"]
     return series.merge(stations[cols], on="station_id", how="left")

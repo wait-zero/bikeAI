@@ -20,16 +20,18 @@ log = logging.getLogger(__name__)
 
 SNAPSHOT_DIR = RAW_DIR / "realtime_snapshots"
 
-# API field names from data.go.kr 15126639. Documented columns vary slightly per
-# operator; we keep raw names then rename to a canonical schema below.
+# API field names from data.go.kr 15126639 endpoint 2 (`/inf_101_00010002_v2`).
+# Note: the API spells longitude as "lot" — this is not a typo on our side.
+# Capacity is intentionally absent here; it must be joined from the static
+# Ttareungi master CSV (data.go.kr 15099365).
 CANONICAL_RENAME = {
-    "stationId": "station_id",
-    "stationName": "station_name",
-    "stationLatitude": "lat",
-    "stationLongitude": "lon",
-    "rackTotCnt": "capacity",
-    "parkingBikeTotCnt": "bike_count",
-    "shared": "shared_pct",
+    "rntstnId": "station_id",
+    "rntstnNm": "station_name",
+    "lat": "lat",
+    "lot": "lon",
+    "bcyclTpkctNocs": "bike_count",
+    "lcgvmnInstCd": "region_code",
+    "lcgvmnInstNm": "region_name",
 }
 
 
@@ -40,6 +42,7 @@ def _fetch_page(client: httpx.Client, cfg: RealtimeApiConfig, page_no: int) -> d
         "pageNo": page_no,
         "numOfRows": cfg.page_size,
         "type": "json",
+        "lcgvmnInstCd": cfg.region_code,
     }
     r = client.get(cfg.base_url, params=params, timeout=cfg.timeout_sec)
     r.raise_for_status()
@@ -64,9 +67,13 @@ def fetch_snapshot(cfg: RealtimeApiConfig | None = None) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df = df.rename(columns=CANONICAL_RENAME)
-    for col in ("lat", "lon", "capacity", "bike_count"):
+    for col in ("lat", "lon"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "bike_count" in df.columns:
+        df["bike_count"] = (
+            pd.to_numeric(df["bike_count"], errors="coerce").fillna(0).astype("int64")
+        )
     df["ingested_at"] = pd.Timestamp.now(tz="Asia/Seoul").floor("s")
     return df
 

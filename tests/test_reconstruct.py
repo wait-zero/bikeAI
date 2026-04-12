@@ -113,17 +113,17 @@ def test_resample_to_grid_forward_fills_between_events():
     assert a.loc["2025-07-15 14:05"] == 11
 
 
-def test_resample_to_grid_clips_to_capacity():
+def test_resample_to_grid_does_not_clip_upper_bound():
+    """Ttareungi has no capacity concept, so resample_to_grid never clips above."""
     rel = pd.DataFrame(
         {
             "station_id": ["A", "A"],
             "ts": pd.to_datetime(["2025-07-15 14:00", "2025-07-15 14:01"]),
-            "bike_count": [10, 99],  # 99 is implausibly high
+            "bike_count": [10, 99],
         }
     )
-    capacity = pd.DataFrame({"station_id": ["A"], "capacity": [15]})
-    grid = resample_to_grid(rel, freq="1min", capacity=capacity)
-    assert grid["bike_count"].max() == 15
+    grid = resample_to_grid(rel, freq="1min")
+    assert grid["bike_count"].max() == 99
 
 
 def test_reconstruct_end_to_end_balances_rents_and_returns():
@@ -142,7 +142,7 @@ def test_reconstruct_end_to_end_balances_rents_and_returns():
             "bike_count": [10, 5],
         }
     )
-    result = reconstruct(rentals, anchors=anchors, freq="1min")
+    result = reconstruct(rentals, anchors=anchors, freq="1min")  # no capacity arg
     final = (
         result.series.sort_values(["station_id", "ts"])
         .groupby("station_id")

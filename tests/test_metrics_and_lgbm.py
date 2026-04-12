@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from bikeai.eval.metrics import empty_full_accuracy, horizon_report, mae, rmse, smape
+from bikeai.eval.metrics import empty_accuracy, horizon_report, mae, rmse, smape
 from bikeai.features.build_dataset import build_feature_table
 from bikeai.models.baseline_lgbm import LgbmBaseline
 
@@ -17,13 +17,13 @@ def test_metrics_basic():
     assert smape(y, p) > 0
 
 
-def test_empty_full_accuracy_handles_capacity():
+def test_empty_accuracy_only():
+    """No capacity concept, so only the empty-station classification matters."""
     y = np.array([0, 0, 5, 10])
     p = np.array([0, 1, 5, 10])
-    cap = np.array([10, 10, 10, 10])
-    out = empty_full_accuracy(y, p, capacity=cap)
+    out = empty_accuracy(y, p)
     assert out["empty_accuracy"] == 0.75
-    assert out["full_accuracy"] == 1.0
+    assert "full_accuracy" not in out
 
 
 def test_lgbm_smoke_end_to_end():
@@ -38,7 +38,7 @@ def test_lgbm_smoke_end_to_end():
     bikes = np.clip(np.round(base + rng.normal(0, 1, n)), 0, 20).astype("int64")
 
     series = pd.DataFrame({"station_id": ["A"] * n, "ts": times, "bike_count": bikes})
-    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0], "capacity": [20]})
+    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0]})
 
     feats = build_feature_table(series, stations, weather=None)
     feats = feats.dropna(subset=[f"target_{h}min" for h in (5, 15, 30, 60)])

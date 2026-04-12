@@ -21,20 +21,27 @@ CANONICAL_COLUMNS = [
     "distance_m",
 ]
 
-# Header variants. Names differ across years (한글 / English / spacing).
+# Header variants observed in the Seoul rental history files.
+# 2025+ files include BOTH the legacy bare-integer columns AND ST-prefixed ID columns
+# (e.g. `대여대여소ID = "ST-2833"`). We prefer the ST-prefixed columns because they
+# match the realtime API's `rntstnId` directly — no normalization needed.
 _RENAME = {
     "자전거번호": "bike_id",
     "대여일시": "rent_dt",
     "대여 일시": "rent_dt",
     "대여시간": "rent_dt",
-    "대여대여소번호": "rent_station",
-    "대여 대여소번호": "rent_station",
-    "대여스테이션번호": "rent_station",
     "반납일시": "return_dt",
     "반납 일시": "return_dt",
     "반납시간": "return_dt",
-    "반납대여소번호": "return_station",
-    "반납 대여소번호": "return_station",
+    # Preferred — ST-prefixed IDs that match the realtime API
+    "대여대여소ID": "rent_station",
+    "반납대여소ID": "return_station",
+    # Legacy fallback — bare/zero-padded integer station numbers
+    "대여대여소번호": "rent_station_no",
+    "대여 대여소번호": "rent_station_no",
+    "대여스테이션번호": "rent_station_no",
+    "반납대여소번호": "return_station_no",
+    "반납 대여소번호": "return_station_no",
     "이용시간": "duration_sec",
     "이용시간(분)": "duration_min",
     "사용시간": "duration_sec",
@@ -44,8 +51,20 @@ _RENAME = {
 
 
 def load_rental_csv(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path, encoding=_detect_encoding(path), low_memory=False)
+    df = pd.read_csv(
+        path,
+        encoding=_detect_encoding(path),
+        low_memory=False,
+        na_values=["\\N", "\\\\N", "NULL", ""],
+        keep_default_na=True,
+    )
     df = df.rename(columns={c: _RENAME.get(c.strip(), c) for c in df.columns})
+
+    # Fall back to legacy bare-int station columns only when ST-prefixed are absent
+    if "rent_station" not in df.columns and "rent_station_no" in df.columns:
+        df["rent_station"] = df["rent_station_no"]
+    if "return_station" not in df.columns and "return_station_no" in df.columns:
+        df["return_station"] = df["return_station_no"]
 
     if "duration_sec" not in df.columns and "duration_min" in df.columns:
         df["duration_sec"] = pd.to_numeric(df["duration_min"], errors="coerce") * 60

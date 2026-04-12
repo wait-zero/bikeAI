@@ -35,7 +35,6 @@ def test_build_neighbor_index_finds_nearby_stations_only():
             "station_id": ["A", "B", "C"],
             "lat": [37.5000, 37.5010, 37.6000],  # A-B ≈110m, A-C ≈11km
             "lon": [127.0, 127.0, 127.0],
-            "capacity": [10, 10, 10],
         }
     )
     idx = build_neighbor_index(stations, radius_m=500)
@@ -44,7 +43,8 @@ def test_build_neighbor_index_finds_nearby_stations_only():
     assert idx["C"] == []
 
 
-def test_build_feature_table_creates_targets_and_no_label_leakage():
+def test_build_feature_table_delta_target_default():
+    """Default target mode is 'delta': target_h(t) = bike_count(t+h) - bike_count(t)."""
     times = pd.date_range("2025-07-15 14:00", periods=120, freq="1min")
     series = pd.DataFrame(
         {
@@ -53,18 +53,54 @@ def test_build_feature_table_creates_targets_and_no_label_leakage():
             "bike_count": np.arange(120, dtype="int64"),
         }
     )
-    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0], "capacity": [200]})
+    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0]})
 
-    df = build_feature_table(series, stations, weather=None)
-
-    assert "target_5min" in df.columns
-    assert "target_60min" in df.columns
-    # target_5min(t) should equal bike_count(t+5) — strict
+    df = build_feature_table(series, stations, weather=None)  # default delta
     a = df[df["station_id"] == "A"].sort_values("ts").reset_index(drop=True)
+
+    # Synthetic series increases by 1 each minute, so delta should be exactly h
+    assert a["target_5min"].iloc[0] == 5
+    assert a["target_60min"].iloc[0] == 60
+    # Same for any starting row that has h future rows
+    assert a["target_5min"].iloc[10] == 5
+    # Last 60 rows have NaN target_60min
+    assert pd.isna(a["target_60min"].iloc[-1])
+
+
+def test_build_feature_table_absolute_mode_legacy():
+    """Explicit 'absolute' mode preserves the legacy behavior."""
+    times = pd.date_range("2025-07-15 14:00", periods=120, freq="1min")
+    series = pd.DataFrame(
+        {
+            "station_id": ["A"] * 120,
+            "ts": times,
+            "bike_count": np.arange(120, dtype="int64"),
+        }
+    )
+    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0]})
+
+    df = build_feature_table(series, stations, weather=None, target_mode="absolute")
+    a = df[df["station_id"] == "A"].sort_values("ts").reset_index(drop=True)
+    # absolute target equals bike_count(t+h)
     assert a["target_5min"].iloc[0] == a["bike_count"].iloc[5]
     assert a["target_60min"].iloc[0] == a["bike_count"].iloc[60]
-    # Last 60 rows have NaN for target_60min — they fall off the end
-    assert a["target_60min"].iloc[-1] != a["target_60min"].iloc[-1]  # NaN check
+
+
+def test_delta_target_can_be_negative():
+    """Delta should be negative when bike_count decreases (rentals exceed returns)."""
+    times = pd.date_range("2025-07-15 14:00", periods=10, freq="1min")
+    series = pd.DataFrame(
+        {
+            "station_id": ["A"] * 10,
+            "ts": times,
+            "bike_count": [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        }
+    )
+    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0]})
+    df = build_feature_table(series, stations, weather=None)
+    a = df[df["station_id"] == "A"].sort_values("ts").reset_index(drop=True)
+    # bike_count drops by 1 every minute, so 5min delta = -5
+    assert a["target_5min"].iloc[0] == -5
 
 
 def test_build_feature_table_joins_weather_via_merge_asof():
@@ -72,7 +108,7 @@ def test_build_feature_table_joins_weather_via_merge_asof():
     series = pd.DataFrame(
         {"station_id": ["A"] * 10, "ts": times, "bike_count": [5] * 10}
     )
-    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0], "capacity": [10]})
+    stations = pd.DataFrame({"station_id": ["A"], "lat": [37.5], "lon": [127.0]})
     weather = pd.DataFrame(
         {
             "ts": pd.to_datetime(["2025-07-15 14:00"]),
